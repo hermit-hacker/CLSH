@@ -380,7 +380,7 @@ function printHTMLHeader($clshConfig, $teamname = "", $teampoints = 0) {
 		echo "</form>\n";
 		echo "Points: " . $teampoints . "</td></tr>\n";	
 	}
-	echo "<tr with=\"100%\" height=\"100%\" valign=\"top\"><td>\n";
+	echo "<tr with=\"100%\" height=\"100%\"><td>\n";
 }
 //
 // END printHTMLHeader
