@@ -86,9 +86,9 @@ function printRegistrationScreen() {
 
 // Convert the $postValues content to an array we can sanitize and use properly
 $postValues = $_POST;
-$postValues['username'] = filter_var(trim($postValues['username']), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
-$postValues['userpass'] = filter_var(trim($postValues['userpass']), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
-$postValues['clsha'] = filter_var(trim($postValues['clsha']), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
+$postValues['username'] = sanitizeInput($postValues['username']);
+$postValues['userpass'] = sanitizeInput($postValues['userpass']);
+$postValues['clsha'] = sanitizeInput($postValues['clsha']);
 // Same for the $_COOKIE data
 $cookieData = $_COOKIE;
 
@@ -107,7 +107,7 @@ cleanSessionDatabase($shConfig);
 
 
 // Check for registration and handle the case
-$showRegister = needToRegister($postValues);
+$showRegister = needToRegister($postValues, $cookieData);
 if (!$showRegister) {
 	if ($postValues['clsha'] == 'register') {
 		$session = addCLSHUser($shConfig, $postValues);

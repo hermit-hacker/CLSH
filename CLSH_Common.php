@@ -548,7 +548,7 @@ function printQuestions($clshConfig, $postValues, $username) {
 // Returns: The sanitized string
 // Description: Strips out all HTML tags and ASCII characters <32 or >127
 function sanitizeInput($inputData) {
-	return filter_var(trim($inputData), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
+	return filter_var(trim($inputData), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW | FILTER_FLAG_STRIP_HIGH);
 }
 //
 // END sanitizeInput
