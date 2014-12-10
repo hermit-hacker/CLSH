@@ -1,9 +1,9 @@
 <?php
 /////////////
 //
-// Cryptolingus Scavenger Hunt (CLSH) version 1.0
+// Cryptolingus Scavenger Hunt (CLSH) version 1.1
 //
-// Modified: 2014-11-08
+// Modified: 2014-12-09
 // Unit: Common
 // File: CLSH_Common.php
 //
@@ -173,22 +173,33 @@ class CLSHConfiguration
 //                                                                                       //
 ///////////////////////////////////////////////////////////////////////////////////////////
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: addCLSHUser
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         Array $postValues  (Sanitized results of $_POST)
+// Returns: A string that contains a user session or an error code
+// Description: Attempts to add a new user account after checking for valid formats
 function addCLSHUser($clshConfig, $postValues) {
-	if ((strncmp($postValues['teamname'], "ERR_", 4) == 0)) {
+	if ((strncmp($postValues['username'], "ERR_", 4) == 0)) {
 		return "ERR_USER_EXISTS";	
 	}
-	if ( userExists($clshConfig->getSetting("General", "UserDatabase"), $postValues['teamname'])) {
+	if ( userExists($clshConfig->getSetting("General", "UserDatabase"), $postValues['username'])) {
 		return "ERR_USER_EXISTS";
 	}
-	$userEntry = $postValues['teamname'] . ":" . password_hash($postValues['teampass'], PASSWORD_DEFAULT) . "\n";
+	$userEntry = $postValues['username'] . ":" . password_hash($postValues['userpass'], PASSWORD_DEFAULT) . "\n";
 	appendToFile($clshConfig->getSetting("General", "UserDatabase"), $userEntry);
-	$successFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['teamname'] . ".db";
-	$failureFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['teamname'] . "_wrong.db";
+	$successFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['username'] . ".db";
+	$failureFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['username'] . "_wrong.db";
 	writeFile($successFile, "");
 	writeFile($failureFile, "");
-	updateScoreboard($clshConfig, $postValues['teamname'], 0);
-	return buildUserSession($clshConfig, $postValues['teamname']);
+	updateScoreboard($clshConfig, $postValues['username'], 0);
+	return buildUserSession($clshConfig, $postValues['username']);
 };
+//
+// END addCLSHUser
+///////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -201,9 +212,16 @@ function appendToFile($theFile, $theData) {
 	file_put_contents($theFile, $theData, FILE_APPEND | LOCK_EX );
 };
 //
-// END
+// END appendToFile
 ///////////////////////////////////////////////////////////////////////////////////////////
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: buildUserSession
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $userName  (The username for which a session will be built)
+// Returns: A string that contains a user session or an error code
+// Description: Creates a user session and returns the session identifier
 function buildUserSession($clshConfig, $userName) {
 	$session = getPassword(80);
 	$now = new DateTime('now', new DateTimeZone("UTC") );
@@ -212,10 +230,21 @@ function buildUserSession($clshConfig, $userName) {
 	appendToFile($clshConfig->getSetting("General", "SessionDatabase"), $sessionEntry);
 	return $session;
 }
+//
+// END buildUserSession
+///////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: checkUserAnswers
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         Array $postValues  (The sanitized $_POST data)
+// Returns: NONE
+// Description: Grades user answers and assigns points
 function checkUserAnswers($clshConfig, $postValues) {
-	$subFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['teamname'] . ".db";
-	$wrongFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['teamname'] . "_wrong.db";
+	$subFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['username'] . ".db";
+	$wrongFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $postValues['username'] . "_wrong.db";
 	$clshSections = $clshConfig->getSections();
 	$subOut = "";
 	$wrongOut = "";
@@ -224,16 +253,16 @@ function checkUserAnswers($clshConfig, $postValues) {
 			$question = 1;
 			while (!is_null($clshConfig->getSetting($section, "Q" . $question))) {
 				$formName = $section . "_Q" . $question;
-				if (!userAlreadyAnswered($clshConfig, $postValues['teamname'], $section, $question)) {
+				if (!userAlreadyAnswered($clshConfig, $postValues['username'], $section, $question)) {
 					if ( trim($postValues[$formName]) !== "" ) {
-					$answer = $clshConfig->getSetting($section, "A" . $question);
-					$subEntry = $formName . ":" . $postValues[$formName] . ":";
-					if ($postValues[$formName] == $answer) {
-						$subOut .= $subEntry . $clshConfig->getSetting($section, "P" . $question) . "\n";
-					} else {
-						$wrongOut .= $subEntry . "0\n";
-					}
-				}	
+						$answer = $clshConfig->getSetting($section, "A" . $question);
+						$subEntry = $formName . ":" . $postValues[$formName] . ":";
+						if ($postValues[$formName] == $answer) {
+							$subOut .= $subEntry . $clshConfig->getSetting($section, "P" . $question) . "\n";
+						} else {
+							$wrongOut .= $subEntry . "0\n";
+						}
+					}	
 				}
 				$question += 1;
 			}
@@ -242,8 +271,17 @@ function checkUserAnswers($clshConfig, $postValues) {
 	appendToFile($subFile, $subOut);
 	appendToFile($wrongFile, $wrongOut);
 }
+//
+// END checkUserAnswers
+///////////////////////////////////////////////////////////////////////////////////////////
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: cleanSessionDatabase
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+// Returns: NONE
+// Description: Clears out a session from the list of active sessions following a user logout
 function cleanSessionDatabase($clshConfig) {
 	$allSessionData = file($clshConfig->getSetting("General", "SessionDatabase"));
 	$newSessionData = "";
@@ -258,6 +296,11 @@ function cleanSessionDatabase($clshConfig) {
 	}
 	writeFile($clshConfig->getSetting("General", "SessionDatabase"), $newSessionData);
 }
+//
+// END cleanSessionDatabase
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Function name: getPassword
@@ -276,6 +319,14 @@ function getPassword($length=15) {
 // END getPassword
 ///////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: getPointsForUser
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $userName  (The sanitized $_POST data)
+// Returns: The total points currently held by the specified user
+// Description: Takes a username and looks up how many points they have gained
 function getPointsForUser($clshConfig, $userName) {
 	$subFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $userName . ".db";
 	$pointRecords = file($subFile);
@@ -286,7 +337,18 @@ function getPointsForUser($clshConfig, $userName) {
 	}
 	return $totalPoints;
 }
+//
+// END getPointsForUser
+///////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: getUserFromSession
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $sessionID  (The session information passed by the user)
+// Returns: Either the usernae or an error string
+// Description: Looks up a session to determine the matching username
 function getUserFromSession($clshConfig, $sessionID) {
 	$allSessionData = file($clshConfig->getSetting("General", "SessionDatabase"));
 	$pattern = "/^" . $sessionID . "/";
@@ -298,29 +360,50 @@ function getUserFromSession($clshConfig, $sessionID) {
 	}
 	return "ERR_NO_SESSION";
 }
+//
+// END getUserFromSession
+///////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: loginUser
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         Array $postValues  (The sanitized $_POST data)
+// Returns: A string describing the status of the request
+// Description: Attempts to log a user into CLSH
 function loginUser($clshConfig, $postValues) {
-	if ((strncmp($postValues['teamname'], "ERR_", 4) == 0)) {
+	if ((strncmp($postValues['username'], "ERR_", 4) == 0)) {
 		return "ERR_BAD_CREDS";	
 	}
-	if ( ! userExists($clshConfig->getSetting("General", "UserDatabase"), $postValues['teamname'])) {
+	if ( ! userExists($clshConfig->getSetting("General", "UserDatabase"), $postValues['username'])) {
 		return "ERR_BAD_CREDS";
 	}
 	$userCreds = file($clshConfig->getSetting("General", "UserDatabase"));
-	$pattern = "/^" . $postValues['teamname'] . ":.*/";
+	$pattern = "/^" . $postValues['username'] . ":.*/";
 	foreach ($userCreds as $line) {
 		if (preg_match($pattern, $line)) {
 			$userHash = trim(substr(strstr($line, ':' ), 1));
 		}
 	}
-	if (password_verify($postValues['teampass'], $userHash)) {
+	if (password_verify($postValues['userpass'], $userHash)) {
 		return "GOOD_PASSWORD";
 	} else {
 		return "ERR_BAD_CREDS";
 	}
 }
+//
+// END loginUser
+///////////////////////////////////////////////////////////////////////////////////////////
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: logoutUser
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $userName  (The username to logout)
+// Returns: NONE
+// Description: Logs a user out of CLSH
 function logoutUser($clshConfig, $userName) {
 	$sessionsFile = $clshConfig->getSetting("General", "SessionDatabase");
 	$allSessionData = file($sessionsFile);
@@ -333,6 +416,10 @@ function logoutUser($clshConfig, $userName) {
 	}
 	writeFile($sessionsFile, $newSessions);
 }
+//
+// END logoutUser
+///////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -359,7 +446,7 @@ function printHTMLFooter($clshConfig) {
 // Inputs: $clshConfig	A CLSHConfiguration object used to customize the page display
 // Returns: null
 // Description: Prints a standard table encapsulating header
-function printHTMLHeader($clshConfig, $teamname = "", $teampoints = 0) {
+function printHTMLHeader($clshConfig, $username = "", $userpoints = 0) {
 	echo "<html>\n";
 	echo "<head><title>CLCS - ";
 	echo $clshConfig->getSetting("General", "SHName");
@@ -372,19 +459,20 @@ function printHTMLHeader($clshConfig, $teamname = "", $teampoints = 0) {
 	echo "<tr><td width=\"100%\"><center><font face=\"Lucida Console, Monaco, monospace\" size=\"+4\"><u>";
 	echo $clshConfig->getSetting("General","SHHeader");
 	echo "</u></font></center></td></tr>\n";
-	if ($teamname !== "" ) {
-		echo "<tr><td width=\"100%\" align=\"right\">Logged in as: " . $teamname;
+	if ($username !== "" ) {
+		echo "<tr><td width=\"100%\" align=\"right\">Logged in as: " . $username;
 		echo "<form name=\"CLSHLogout\" action=\"CLSH_Home.php\" method=\"post\">";
 		echo "<input type=\"hidden\" name=\"clsha\" value=\"logout\">";
 		echo "<input type=\"submit\" value=\"Logout\">\n";
 		echo "</form>\n";
-		echo "Points: " . $teampoints . "</td></tr>\n";	
+		echo "Points: " . $userpoints . "</td></tr>\n";	
 	}
 	echo "<tr with=\"100%\" height=\"100%\"><td>\n";
 }
 //
 // END printHTMLHeader
 ///////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -410,6 +498,14 @@ function printHTMLSBHeader($clshConfig) {
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: printQuestions
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         Array $postValues  (The sanitized $_POST data)
+//         String $username (The username to filter the questions)
+// Returns: NONE
+// Description: Builds the table of user questions with answer questions blocked out
 function printQuestions($clshConfig, $postValues, $username) {
 	echo "<form name=\"CLSHQuestions\" action=\"CLSH_Home.php\" method=\"post\">\n";
 	echo "<table width=\'600px\' border=\'0\' class=\"bottomBorder\">\n";
@@ -440,7 +536,33 @@ function printQuestions($clshConfig, $postValues, $username) {
 	echo "<input type=\"submit\" value=\"Submit Answers\">\n";
 	echo "</form>\n";
 };
+//
+// END printQuestions
+///////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: sanitizeInput
+// Inputs: String $inputData  (A string to be sanitized)
+// Returns: The sanitized string
+// Description: Strips out all HTML tags and ASCII characters <32 or >127
+function sanitizeInput($inputData) {
+	return filter_var(trim($inputData), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
+}
+//
+// END sanitizeInput
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: showHTMLError
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $theError  (The error title to display)
+//         String $theDescription (The error description to display)
+// Returns: NONE
+// Description: Displays a formatted error message
 function showHTMLError($clshConfig, $theError, $theDescription) {
 	printHTMLHeader($clshConfig);
 	echo "<center><h1>ERROR: " . $theError . "</h1><br>\n";
@@ -449,9 +571,18 @@ function showHTMLError($clshConfig, $theError, $theDescription) {
 	printHTMLFooter($clshConfig);
 }
 //
-// END
+// END showHTMLError
 ///////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: updateScoreboard
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $username (The username to filter the questions)
+//         String $points (The number of points to set the scoreboard to for that user)
+// Returns: NONE
+// Description: Updates the scoreboard file with the specified user's current score
 function updateScoreboard($clshConfig, $username, $points) {
 	$theFile = $clshConfig->getSetting("General", "Scoreboard");
 	if (! file_exists($theFile))
@@ -486,8 +617,20 @@ function updateScoreboard($clshConfig, $username, $points) {
 	}
 	writeFile($theFile, $newScores);
 }
+//
+// END updateScoreboard
+///////////////////////////////////////////////////////////////////////////////////////////
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: userAlreadyAnswered
+// Inputs: CLSHConfiguration $clshConfig  (The configuration data object)
+//         String $username (The username to filter the questions)
+//         String $section (The section to check)
+//         String $question (The question to check)
+// Returns: A Boolean value indicating whether or not the question has already been answered
+// Description: Determines if a user has already answered a question
 function userAlreadyAnswered($clshConfig, $username, $section, $question) {
 	$subFile = $clshConfig->getSetting("General", "SubmissionsDirectory") . "/" . $username . ".db";
 	$allAnswers = file($subFile);
@@ -500,6 +643,9 @@ function userAlreadyAnswered($clshConfig, $username, $section, $question) {
 	}
 	return FALSE;
 }
+//
+// END userAlreadyAnswered
+///////////////////////////////////////////////////////////////////////////////////////////
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -537,7 +683,7 @@ function writeFile($theFile, $theData) {
 	fclose($fh);
 }
 //
-// END
+// END writeFile
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 

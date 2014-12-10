@@ -1,9 +1,9 @@
 <?php
 /////////////
 //
-// Cryptolingus Scavenger Hunt (CLSH) version 1.0
+// Cryptolingus Scavenger Hunt (CLSH) version 1.1
 //
-// Modified: 2014-11-08
+// Modified: 2014-12-08
 // Unit: Home
 // File: CLSH_Home.php
 //
@@ -11,38 +11,56 @@
 //
 ////////////
 
+
+// Pull in the common functions
 include 'CLSH_Common.php';
 
 
-function needToRegister() {
-	if (!is_null($_POST['clsha'])) {
-		if ($_POST['clsha'] == 'register') {
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: needToRegister
+// Inputs: Array $postData (The sanitized data from $postValues)
+//         Array $cookieData (The sanitized data from $_COOKIE)
+// Returns: Whether or not registration is required (TRUE = Needs to register, FALSE = No registration required)
+// Description: Inspects posted data to determine if registration screen should be displayed (i.e. no session)
+function needToRegister($postData, $cookieData) {
+	if (!is_null($postData['clsha'])) {
+		if ($postData['clsha'] == 'register') {
 			return FALSE;
-		} elseif ($_POST['clsha'] == 'login' ) {
+		} elseif ($postData['clsha'] == 'login' ) {
 			return FALSE;
-		} elseif (is_null($_COOKIE['SESSIONID'])) {
+		} elseif (is_null($cookieData['SESSIONID'])) {
 			return TRUE;
 		} else {
 			return FALSE;
 		}
 	} else {
-		if (is_null($_COOKIE['SESSIONID'])) {
+		if (is_null($cookieData['SESSIONID'])) {
 			return TRUE;
 		} else {
 			return FALSE;
 		}
 	}
 };
+//
+// END needToRegister
+///////////////////////////////////////////////////////////////////////////////////////////
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Function name: printRegistrationScreen
+// Inputs: NONE
+// Returns: NONE
+// Description: Prints the registration screen
 function printRegistrationScreen() {
 	echo "<center>\n";
 	echo "<table width='50%'><tr><td>\n";
 	echo "<u>Register</u>\n";
 	echo "<form name=\"register\" action=\"CLSH_Home.php\" method=\"post\">\n";
-	echo "Name: <input type=\"text\" name=\"teamname\"><br>\n";
+	echo "Name: <input type=\"text\" name=\"username\"><br>\n";
 	echo "<input type=\"hidden\" name=\"clsha\" value=\"register\">";
-	echo "Password: <input type=\"password\" name=\"teampass\"><br>\n";
+	echo "Password: <input type=\"password\" name=\"userpass\"><br>\n";
 	echo "<br>\n";
 	echo "<br>\n";
 	echo "<input type=\"submit\" value=\"Register\">\n";
@@ -50,9 +68,9 @@ function printRegistrationScreen() {
 	echo "</td><td>\n";
 	echo "<u>Login</u>\n";
 	echo "<form name=\"login\" action=\"CLSH_Home.php\" method=\"post\">\n";
-	echo "Name: <input type=\"text\" name=\"teamname\"><br>\n";
+	echo "Name: <input type=\"text\" name=\"username\"><br>\n";
 	echo "<input type=\"hidden\" name=\"clsha\" value=\"login\">";
-	echo "Password: <input type=\"password\" name=\"teampass\"><br>\n";
+	echo "Password: <input type=\"password\" name=\"userpass\"><br>\n";
 	echo "<br>\n";
 	echo "<br>\n";
 	echo "<input type=\"submit\" value=\"Login\">\n";
@@ -60,73 +78,98 @@ function printRegistrationScreen() {
 	echo "</td></tr></table>\n";
 	echo "</center>\n";
 };
+//
+// END printRegistrationScreen
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+// Convert the $postValues content to an array we can sanitize and use properly
+$postValues = $_POST;
+$postValues['username'] = filter_var(trim($postValues['username']), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
+$postValues['userpass'] = filter_var(trim($postValues['userpass']), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
+$postValues['clsha'] = filter_var(trim($postValues['clsha']), FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW, FILTER_FLAG_STRIP_HIGH);
+// Same for the $_COOKIE data
+$cookieData = $_COOKIE;
+
+
 
 // Build the CLSHConfiguration file
 $shConfig = new CLSHConfiguration("default.ini");
-$teamname = "";
-$teampoints = 0;
+$username = "";
+$userpoints = 0;
+
+
 
 // Clean the session data
 cleanSessionDatabase($shConfig);
 
-// Check for registration
-$showRegister = needToRegister();
+
+
+// Check for registration and handle the case
+$showRegister = needToRegister($postValues);
 if (!$showRegister) {
-	if ($_POST['clsha'] == 'register') {
-		$session = addCLSHUser($shConfig, $_POST);
-		$teamname = $_POST['teamname'];
+	if ($postValues['clsha'] == 'register') {
+		$session = addCLSHUser($shConfig, $postValues);
+		$username = $postValues['username'];
 		if ($session == "ERR_USER_EXISTS") {
 			showHTMLError($shConfig, "User already exists", "Please try a different name or login.");
 			exit;
 		}
-	} elseif ($_POST['clsha'] == 'login') {
-		$loginCheck = loginUser($shConfig, $_POST);
+	} elseif ($postValues['clsha'] == 'login') {
+		$loginCheck = loginUser($shConfig, $postValues);
 		if ($loginCheck == "ERR_BAD_CREDS") {
 			showHTMLError($shConfig, "Invalid credentials", "Please try again.");
 			exit;
 		} else {
-			buildUserSession($shConfig, $_POST['teamname']);
-			$teamname = $_POST['teamname'];
-			$teampoints = getPointsForUser($shConfig, $teamname);
+			buildUserSession($shConfig, $postValues['username']);
+			$username = $postValues['username'];
+			$userpoints = getPointsForUser($shConfig, $username);
 		}
-	} elseif ($_POST['clsha'] == 'logout' ) {
+	} elseif ($postValues['clsha'] == 'logout' ) {
 		setcookie("SESSIONID", "", time() - 31337);
 		logoutUser($shConfig, getUserFromSession($shConfig, $session));
 		$showRegister = TRUE;
-	} elseif ($_POST['clsha'] == "postanswers" ) {
-		$session = $_COOKIE['SESSIONID'];
-		$teamname = getUserFromSession($shConfig, $session);
-		if ($teamname == "ERR_NO_SESSION") {
+	} elseif ($postValues['clsha'] == "postanswers" ) {
+		$session = $cookieData['SESSIONID'];
+		$username = getUserFromSession($shConfig, $session);
+		if ($username == "ERR_NO_SESSION") {
 			setcookie("SESSIONID", "", time() - 31337);
 			showHTMLError($shConfig, "Login expired", "Please login again to continue.");
 			exit;
 		} else {
-			$_POST['teamname'] = $teamname;
+			$postValues['username'] = $username;
 		}
-		checkUserAnswers($shConfig, $_POST);
-		$teampoints = getPointsForUser($shConfig, $teamname);
-		updateScoreboard($shConfig, $teamname, $teampoints);
+		checkUserAnswers($shConfig, $postValues);
+		$userpoints = getPointsForUser($shConfig, $username);
+		updateScoreboard($shConfig, $username, $userpoints);
 	} else {
-		$session = $_COOKIE['SESSIONID'];
-		$teamname = getUserFromSession($shConfig, $session);
-		if ($teamname == "ERR_NO_SESSION") {
+		$session = $cookieData['SESSIONID'];
+		$username = getUserFromSession($shConfig, $session);
+		if ($username == "ERR_NO_SESSION") {
 			setcookie("SESSIONID", "", time() - 31337);
 			showHTMLError($shConfig, "Login expired", "Please login again to continue.");
 			exit;
 		}
-		$teampoints = getPointsForUser($shConfig, $teamname);
+		$userpoints = getPointsForUser($shConfig, $username);
 	}
 }
 
+
+
 // Show the header
-printHTMLHeader($shConfig, $teamname, $teampoints);
+printHTMLHeader($shConfig, $username, $userpoints);
+
+
 
 // Check cookie, if not current user then force registration
 if ($showRegister) {
 	printRegistrationScreen();
 } else {
-	printQuestions($shConfig, $_POST, $teamname);
+	printQuestions($shConfig, $postValues, $username);
 }
+
+
 
 // Show the footer
 printHTMLFooter($shConfig);
