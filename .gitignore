@@ -1,0 +1,13 @@
+subs/
+
+scores.db
+
+sessions.db
+
+users.db
+
+bsides_dfw_2014.ini
+
+default.ini.backup
+
+.settings/com.aptana.editor.php.prefs
